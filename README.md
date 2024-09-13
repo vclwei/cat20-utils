@@ -13,7 +13,8 @@
 
 ### 索引数据库备份
 
-为了节省索引时间，备份了一份 Block 到 13888 的 CAT20 索引数据库文件，下载地址 https://mypikpak.com/s/VO6drPV4dk-_42JS6-5ENThmo1 。
+为了节省索引时间，备份了一份 Block 到 13888 的 CAT20 索引数据库文件，下载地址 https://www.dropbox.com/scl/fi/1dvfi4bwkog5g126b713j/cat_index_postgres_13888.sql.tar.gz?rlkey=9lkzi8wew02bgqh2kd4w8itfk&st=963g7iim&dl=0 。
+
 也是比较适用于自己安装的 postgresql。
 
 使用方法：
