@@ -70,8 +70,12 @@ do
         
         # 获取并显示账户余额
         log "获取账户余额:"
-        yarn cli wallet balances
-        
+            # 获取并解析 CAT 余额
+        balance_output=$(yarn cli wallet balances)
+        cat_balance=$(echo "$balance_output" | grep -oP "(?<=│ 'CAT'  │ ')[0-9.]+" || echo "0.00")
+        # 打印当前钱包地址及CAT余额
+        log "$wallet_address 的 CAT 余额: $cat_balance"
+
         log "------------------------"
     done
 
