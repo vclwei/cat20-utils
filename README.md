@@ -17,11 +17,14 @@
 
 也是比较适用于自己安装的 postgresql。
 
+[How to backup and restore a postgres database](https://tembo.io/docs/getting-started/postgres_guides/how-to-backup-and-restore-a-postgres-database)
+
 使用方法：
 1. tar -zxvf cat20-index-13888.tar.gz 解压文件
 2. 将解压后的文件夹 mv 到 /var/lib/postgresql/ 目录下
 3. 使用 sudo -i -u postgres 切换到 postgres 用户
 4. 使用 psql -U postgres -d postgres -f cat20-index-13888.sql 恢复数据库
+
 
 
 ### deploy.sh
