@@ -59,15 +59,15 @@ do
 
     # 如果成功获取到 fastestFee，且小于 max_fee（或无限制），则使用 fastestFee，否则跳过本次循环
     if [ -z "$fastestFee" ] || [ "$fastestFee" == "null" ]; then
-        log "获取费率失败，等待10秒后继续下一次循环"
-        sleep 10
+        log "获取费率失败，等待5秒后继续下一次循环"
+        sleep 5
         continue
     elif [ $max_fee -eq -1 ] || [ "$fastestFee" -le "$max_fee" ]; then
         fee=$fastestFee
         log "执行费率: $fee"
     else
-        log "当前费率 $fastestFee 超过最大可接受费率 $max_fee，等待30秒后继续下一次循环"
-        sleep 30
+        log "当前费率 $fastestFee 超过最大可接受费率 $max_fee，等待10秒后继续下一次循环"
+        sleep 10
         continue
     fi
     
@@ -161,8 +161,8 @@ do
     done
 
     log "第 $loop_count 次 Mint 尝试完成"
-    log "等待30秒后开始下一轮..."
-    sleep 30
+    log "等待15秒后开始下一轮..."
+    sleep 15
 done
 
 # 注意：这个脚本现在会无限运行，需要手动中断（如按 Ctrl+C）才会停止
