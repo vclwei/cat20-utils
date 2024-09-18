@@ -9,7 +9,7 @@ else
 fi
 
 # 检查必要的环境变量是否存在
-if [ -z "$WORK_PATH" ] || [ -z "$CONFIG_JSON_NETWORK" ] || [ -z "$CONFIG_JSON_TRACKER" ] || [ -z "$CONFIG_JSON_DATA_DIR" ] || [ -z "$CONFIG_JSON_RPC_URL" ] || [ -z "$CONFIG_JSON_RPC_USERNAME" ] || [ -z "$CONFIG_JSON_RPC_PASSWORD" ] || [ -z "$GIT_REPO_URL" ]; then
+if [ -z "$WORK_PATH" ] || [ -z "$CONFIG_JSON_NETWORK" ] || [ -z "$CONFIG_JSON_TRACKER" ] || [ -z "$CONFIG_JSON_DATA_DIR" ] || [ -z "$CONFIG_JSON_RPC_URL" ] || [ -z "$CONFIG_JSON_RPC_USERNAME" ] || [ -z "$CONFIG_JSON_RPC_PASSWORD" ]; then
     echo "错误：一个或多个必要的环境变量未在 .env 文件中定义"
     exit 1
 fi

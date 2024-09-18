@@ -59,7 +59,7 @@ do
         total_btc=$(echo "$total_btc + $btc_balance" | bc)
     else
         log "警告: wallet.json 文件不存在"
-        log "BTC 余额: 无法获取"
+        log "BTC 余额: 无法取"
     fi
     
     # 获取并解析余额
@@ -69,48 +69,42 @@ do
     # 读取 tokens.json 文件
     tokens_json=$(cat tokens.json)
 
-    # 使用 awk 解析输出并按指定格式显示
-    parsed_balance=$(echo "$balance_output" | awk -v tokens="$tokens_json" '
-    BEGIN {
-        # 解析 tokens.json
-        split(tokens, token_array, /[{}]/)
-        for (i in token_array) {
-            if (token_array[i] ~ /"id":/) {
-                split(token_array[i], fields, /,/)
-                token_id = ""
-                token_limit = ""
-                for (j in fields) {
-                    if (fields[j] ~ /"id":/) {
-                        split(fields[j], id_field, /:/)
-                        gsub(/[" ]/, "", id_field[2])
-                        token_id = id_field[2]
-                    }
-                    if (fields[j] ~ /"limit":/) {
-                        split(fields[j], limit_field, /:/)
-                        gsub(/[" ]/, "", limit_field[2])
-                        token_limit = limit_field[2]
-                    }
-                }
-                if (token_id != "" && token_limit != "") {
-                    token_limits[token_id] = token_limit
-                }
-            }
-        }
+    # 使用 jq 解析 tokens.json 文件
+    parse_tokens() {
+        echo "$tokens_json" | jq -r '.[] | "\(.tokenId)|\(.symbol)|\(.info.limit)"'
     }
-    NR>2 && NF>1 {
-        gsub(/^[ \t]+|[ \t]+$/, "", $2);
-        gsub(/^[ \t]+|[ \t]+$/, "", $3);
-        gsub(/^[ \t]+|[ \t]+$/, "", $4);
-        gsub(/'\''/, "", $2);
-        gsub(/'\''/, "", $3);
-        gsub(/'\''/, "", $4);
-        if($2 != "" && $3 != "" && $4 != "") {
+
+    # 创建关联数组来存储 token 信息
+    declare -A token_info
+
+    # 解析 token 信息并存储到关联数组中
+    while IFS='|' read -r id symbol limit; do
+        token_info["$id"]="$symbol|$limit"
+    done < <(parse_tokens)
+
+    # 使用 awk 解析输出并按指定格式显示
+    parsed_balance=$(echo "$balance_output" | awk -v token_info="$(declare -p token_info)" '
+    BEGIN {
+        FS = "│"
+        eval token_info
+    }
+    NR > 3 && NF > 3 {  # 跳过表头和分隔线
+        gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $2)  # tokenId
+        gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $3)  # symbol
+        gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $4)  # balance
+        if ($2 != "" && $3 != "" && $4 != "") {
             balance = $4 + 0  # 将余额转换为数字
-            limit = token_limits[$2] + 0  # 获取对应的 limit 值并转换为数字
-            if (limit > 0) {
-                sheets = int(balance / limit)
-                remainder = balance % limit
-                printf "%s (%s): %s (%.2f 张完整, 余 %.2f)\n", $3, $2, $4, sheets, remainder
+            if ($2 in token_info) {
+                split(token_info[$2], info, "|")
+                symbol = info[1]
+                limit = info[2] + 0
+                if (limit > 0) {
+                    sheets = int(balance / limit)
+                    remainder = balance % limit
+                    printf "%s (%s): %s (%.2f 张完整, 余 %.2f)\n", symbol, $2, $4, sheets, remainder
+                } else {
+                    printf "%s (%s): %s\n", symbol, $2, $4
+                }
             } else {
                 printf "%s (%s): %s\n", $3, $2, $4
             }
@@ -120,9 +114,9 @@ do
     echo "$parsed_balance"
 
     # 更新总 token 余额
-    echo "$parsed_balance" | while read -r line; do
+    echo "$parsed_balance" | while IFS= read -r line; do
         symbol=$(echo "$line" | awk -F'[()]' '{print $1}' | xargs)
-        balance=$(echo "$line" | awk '{print $NF}' | sed 's/[()].*$//')
+        balance=$(echo "$line" | awk '{print $3}')
         current_total=${total_tokens[$symbol]:-0}
         total_tokens[$symbol]=$(echo "$current_total + $balance" | bc)
     done
