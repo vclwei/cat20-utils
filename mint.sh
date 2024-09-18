@@ -106,8 +106,14 @@ do
             
             # 使用 bitcoin-cli 获取 BTC 余额，指定配置文件
             btc_balance=$("$BITCOIN_CLI" -conf="$BITCOIN_CONF" -rpcwallet="$wallet_name" getbalance)
-            log "BTC 余额: $btc_balance"
-            total_btc=$(echo "$total_btc + $btc_balance" | bc)
+            
+            # 检查 btc_balance 是否为有效数字
+            if [[ $btc_balance =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                log "BTC 余额: $btc_balance"
+                total_btc=$(echo "$total_btc + $btc_balance" | bc -l)
+            else
+                log "警告: 获取到的 BTC 余额无效: $btc_balance"
+            fi
         else
             log "钱包: $wallet_address" 
             log "警告: wallet.json 文件不存在"
