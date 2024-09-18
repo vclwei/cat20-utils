@@ -86,57 +86,64 @@ do
         # 执行指定的命令
         yarn cli mint -i $tid --fee-rate $fee
         
-        # 在 mint.sh 文件中，替换原有的获取并显示账户余额的代码
         log "获取账户余额:"
-        balance_output=$(yarn cli wallet balances)
         log "$wallet_address 的资产余额:"
 
-        # 读取 tokens.json 文件
-        tokens_json=$(cat tokens.json)
-
-        # 使用 jq 解析 tokens.json 文件
+        # 读取当前目录下的 tokens.json 文件并解析 token 信息
         parse_tokens() {
-            echo "$tokens_json" | jq -r '.[] | "\(.tokenId)|\(.symbol)|\(.info.limit)"'
+            local tokens_file="tokens.json"
+            if [ -f "$tokens_file" ]; then
+                jq -r '.[] | "\(.tokenId)|\(.info.symbol)|\(.info.decimals)|\(.info.limit)|\(.info.name)"' "$tokens_file"
+            else
+                log "警告: tokens.json 文件不存在"
+            fi
         }
 
-        # 创建关联数组来存储 token 信息
+        # 从 wallet.json 获取 wallet_name
+        if [ -f "wallet.json" ]; then
+            wallet_name=$(jq -r '.name' wallet.json)
+            log "钱包: $wallet_name ($wallet_address)"
+            
+            # 使用 bitcoin-cli 获取 BTC 余额，指定配置文件
+            btc_balance=$("$BITCOIN_CLI" -conf="$BITCOIN_CONF" -rpcwallet="$wallet_name" getbalance)
+            log "BTC 余额: $btc_balance"
+            total_btc=$(echo "$total_btc + $btc_balance" | bc)
+        else
+            log "钱包: $wallet_address" 
+            log "警告: wallet.json 文件不存在"
+            log "BTC 余额: 无法获取"
+        fi
+    
+
+        # 初始化 token 信息数组
         declare -A token_info
 
-        # 解析 token 信息并存储到关联数组中
-        while IFS='|' read -r id symbol limit; do
-            token_info["$id"]="$symbol|$limit"
+        # 解析 token 信息并存储到数组中
+        while IFS='|' read -r id symbol decimals limit name; do
+            token_info["$id"]="$symbol|$decimals|$limit|$name"
         done < <(parse_tokens)
 
-        # 使用 awk 解析输出并按指定格式显示
-        parsed_balance=$(echo "$balance_output" | awk -v token_info="$(declare -p token_info)" '
-        BEGIN {
-            FS = "│"
-            eval token_info
-        }
-        NR > 3 && NF > 3 {  # 跳过表头和分隔线
-            gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $2)  # tokenId
-            gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $3)  # symbol
-            gsub(/^[ \t''\'']+|[ \t''\'']+$/, "", $4)  # balance
-            if ($2 != "" && $3 != "" && $4 != "") {
-                balance = $4 + 0  # 将余额转换为数字
-                if ($2 in token_info) {
-                    split(token_info[$2], info, "|")
-                    symbol = info[1]
-                    limit = info[2] + 0
-                    if (limit > 0) {
-                        sheets = int(balance / limit)
-                        remainder = balance % limit
-                        printf "%s (%s): %s (%.2f 张完整, 余 %.2f)\n", symbol, $2, $4, sheets, remainder
-                    } else {
-                        printf "%s (%s): %s\n", symbol, $2, $4
-                    }
-                } else {
-                    printf "%s (%s): %s\n", $3, $2, $4
-                }
-            }
-        }')
+        # 使用 API 获取 token 余额
+        api_url="${CONFIG_JSON_TRACKER}/api/addresses/${wallet_address}/balances"
+        token_balances=$(curl -s "$api_url")
 
-        echo "$parsed_balance"
+        log "Token 余额:"
+        while read -r line; do
+            eval "$line"
+            if [[ -n "${token_info[$token_id]}" ]]; then
+                IFS='|' read -r symbol decimals limit name <<< "${token_info[$token_id]}"
+                formatted_balance=$(printf "%.${decimals}f" $(echo "scale=$decimals; $balance / 10^$decimals" | bc))
+                if [[ -n "$limit" && "$limit" != "null" ]]; then
+                    sheets=$(echo "$formatted_balance / $limit" | bc)
+                    remainder=$(printf "%.${decimals}f" $(echo "scale=$decimals; $formatted_balance % $limit" | bc))
+                    log "$symbol [$token_id]: $formatted_balance (${sheets} 张完整, 余 ${remainder})"
+                else
+                    log "$symbol [$token_id]: $formatted_balance"
+                fi
+            else
+                log "未知 Token [$token_id]: $balance"
+            fi
+        done < <(echo "$token_balances" | jq -r '.data.balances[] | @sh "token_id=\(.tokenId) balance=\(.confirmed)"')
 
         log "------------------------"
     done
