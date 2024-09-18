@@ -18,7 +18,7 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-log "开始查询所有目标目录的 BTC 和 CAT 余额"
+log "开始查询所有目标目录的 BTC 和 token 余额"
 
 # 获取 WORK_PATH 目录中的最大数字
 max_num=$(ls -d "$WORK_PATH"/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
@@ -31,7 +31,7 @@ fi
 
 # 初始化总余额变量
 total_btc=0
-total_cat=0
+declare -A total_tokens
 
 # 遍历所有目标目录
 for ((j=1; j<=$max_num; j++))
@@ -39,7 +39,7 @@ do
     target_dir="$WORK_PATH/$j/packages/cli"
     log "查询目录: $target_dir"
     if [ ! -d "$target_dir" ]; then
-        log "目录不��在: $target_dir"
+        log "目录不存在: $target_dir"
         continue
     fi
     cd "$target_dir" || { log "无法切换到目标文件夹: $target_dir"; continue; }
@@ -62,37 +62,87 @@ do
         log "BTC 余额: 无法获取"
     fi
     
-    # 替换原有的获取并解析 CAT 余额的代码
+    # 获取并解析余额
     balance_output=$(yarn cli wallet balances)
-    cat_balance=$(echo "$balance_output" | awk -F'│' '$3 ~ /'\''CAT'\''/ {gsub(/^[ \t]+|[ \t]+$/, "", $4); print $4}')
-    cat_balance=${cat_balance:-"0.00"}  # 如果没有找到 CAT 余额，默认为 0.00
+    log "钱包余额:"
 
-    # 计算 CAT 张数
-    cat_count=$(echo "$cat_balance" | awk '{print int($1)}')
-    cat_sheets=$(echo "$cat_count / 5" | bc)
-    cat_remainder=$(echo "$cat_count % 5" | bc)
+    # 读取 tokens.json 文件
+    tokens_json=$(cat tokens.json)
 
-    log "CAT 余额: $cat_balance 个 ($cat_sheets 张完整, 余 $cat_remainder 个)"
+    # 使用 awk 解析输出并按指定格式显示
+    parsed_balance=$(echo "$balance_output" | awk -v tokens="$tokens_json" '
+    BEGIN {
+        # 解析 tokens.json
+        split(tokens, token_array, /[{}]/)
+        for (i in token_array) {
+            if (token_array[i] ~ /"id":/) {
+                split(token_array[i], fields, /,/)
+                token_id = ""
+                token_limit = ""
+                for (j in fields) {
+                    if (fields[j] ~ /"id":/) {
+                        split(fields[j], id_field, /:/)
+                        gsub(/[" ]/, "", id_field[2])
+                        token_id = id_field[2]
+                    }
+                    if (fields[j] ~ /"limit":/) {
+                        split(fields[j], limit_field, /:/)
+                        gsub(/[" ]/, "", limit_field[2])
+                        token_limit = limit_field[2]
+                    }
+                }
+                if (token_id != "" && token_limit != "") {
+                    token_limits[token_id] = token_limit
+                }
+            }
+        }
+    }
+    NR>2 && NF>1 {
+        gsub(/^[ \t]+|[ \t]+$/, "", $2);
+        gsub(/^[ \t]+|[ \t]+$/, "", $3);
+        gsub(/^[ \t]+|[ \t]+$/, "", $4);
+        gsub(/'\''/, "", $2);
+        gsub(/'\''/, "", $3);
+        gsub(/'\''/, "", $4);
+        if($2 != "" && $3 != "" && $4 != "") {
+            balance = $4 + 0  # 将余额转换为数字
+            limit = token_limits[$2] + 0  # 获取对应的 limit 值并转换为数字
+            if (limit > 0) {
+                sheets = int(balance / limit)
+                remainder = balance % limit
+                printf "%s (%s): %s (%.2f 张完整, 余 %.2f)\n", $3, $2, $4, sheets, remainder
+            } else {
+                printf "%s (%s): %s\n", $3, $2, $4
+            }
+        }
+    }')
 
-    total_cat=$(echo "$total_cat + $cat_balance" | bc)
+    echo "$parsed_balance"
 
-    # 获取其他代币余额
-    other_tokens=$(echo "$balance_output" | awk -F'│' 'NR>2 && $3 !~ /'\''CAT'\''/ {gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $4); if($3 != "" && $4 != "") print "  " $3 ": " $4}')
-    if [ ! -z "$other_tokens" ]; then
-        log "其他代币余额:"
-        echo "$other_tokens"
-    fi
-    
+    # 更新总 token 余额
+    echo "$parsed_balance" | while read -r line; do
+        symbol=$(echo "$line" | awk -F'[()]' '{print $1}' | xargs)
+        balance=$(echo "$line" | awk '{print $NF}' | sed 's/[()].*$//')
+        current_total=${total_tokens[$symbol]:-0}
+        total_tokens[$symbol]=$(echo "$current_total + $balance" | bc)
+    done
+
     log "------------------------"
 done
-
-# 计算总的 CAT 张数
-total_cat_count=$(echo "$total_cat" | awk '{print int($1)}')
-total_cat_sheets=$(echo "$total_cat_count / 5" | bc)
-total_cat_remainder=$(echo "$total_cat_count % 5" | bc)
 
 log "余额查询完成"
 log "------------------------"
 log "总计:"
 log "BTC 总余额: $total_btc"
-log "CAT 总余额: $total_cat 个 ($total_cat_sheets 张完整, 余 $total_cat_remainder 个)"
+for symbol in "${!total_tokens[@]}"; do
+    balance=${total_tokens[$symbol]}
+    token_id=$(echo "$parsed_balance" | awk -v sym="$symbol" '$0 ~ sym {gsub(/.*\(|\).*/,""); print}')
+    limit=$(echo "$tokens_json" | jq -r --arg id "$token_id" '.[] | select(.id == $id) | .limit')
+    if [[ -n "$limit" && "$limit" != "null" ]]; then
+        sheets=$(echo "$balance / $limit" | bc)
+        remainder=$(echo "$balance % $limit" | bc)
+        log "$symbol 总余额: $balance (${sheets} 张完整, 余 ${remainder})"
+    else
+        log "$symbol 总余额: $balance"
+    fi
+done

@@ -49,7 +49,7 @@ do
     ((loop_count++))
     log "第 $loop_count 次 Mint 尝试------------------------"
 
-    # 获取自动费率
+    # 获取自动
     response=$(curl -s https://mempool.fractalbitcoin.io/api/v1/fees/mempool-blocks)
     fastestFee=$(echo "$response" | jq '.[0].feeRange | .[-4] | floor') # 倒数第四档，向下取整
     fastestFee=${fastestFee%.*}  # 移除小数部分
@@ -86,12 +86,64 @@ do
         # 执行指定的命令
         yarn cli mint -i $tid --fee-rate $fee
         
-        # 获取并显示账户余额
+        # 在 mint.sh 文件中，替换原有的获取并显示账户余额的代码
         log "获取账户余额:"
         balance_output=$(yarn cli wallet balances)
         log "$wallet_address 的资产余额:"
-        echo "$balance_output" | awk -F'│' 'NR>2 && NF>1 {gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $4); if($2 != "" && $3 != "" && $4 != "") print "  " $3 ": " $4}'
-        
+
+        # 读取 tokens.json 文件
+        tokens_json=$(cat tokens.json)
+
+        # 使用 awk 解析输出并按指定格式显示
+        parsed_balance=$(echo "$balance_output" | awk -v tokens="$tokens_json" '
+        BEGIN {
+            # 解析 tokens.json
+            split(tokens, token_array, /[{}]/)
+            for (i in token_array) {
+                if (token_array[i] ~ /"id":/) {
+                    split(token_array[i], fields, /,/)
+                    token_id = ""
+                    token_limit = ""
+                    for (j in fields) {
+                        if (fields[j] ~ /"id":/) {
+                            split(fields[j], id_field, /:/)
+                            gsub(/[" ]/, "", id_field[2])
+                            token_id = id_field[2]
+                        }
+                        if (fields[j] ~ /"limit":/) {
+                            split(fields[j], limit_field, /:/)
+                            gsub(/[" ]/, "", limit_field[2])
+                            token_limit = limit_field[2]
+                        }
+                    }
+                    if (token_id != "" && token_limit != "") {
+                        token_limits[token_id] = token_limit
+                    }
+                }
+            }
+        }
+        NR>2 && NF>1 {
+            gsub(/^[ \t]+|[ \t]+$/, "", $2);
+            gsub(/^[ \t]+|[ \t]+$/, "", $3);
+            gsub(/^[ \t]+|[ \t]+$/, "", $4);
+            gsub(/'\''/, "", $2);
+            gsub(/'\''/, "", $3);
+            gsub(/'\''/, "", $4);
+            if($2 != "" && $3 != "" && $4 != "") {
+                balance = $4 + 0  # 将余额转换为数字
+                limit = token_limits[$2] + 0  # 获取对应的 limit 值并转换为数字
+                if (limit > 0) {
+                    sheets = int(balance / limit)
+                    remainder = balance % limit
+                    printf "%s (%s): %s (%.2f 张完整, 余 %.2f)\n", $3, $2, $4, sheets, remainder
+                } else {
+                    printf "%s (%s): %s\n", $3, $2, $4
+                }
+            }
+        }')
+
+        echo "$parsed_balance"
+
         log "------------------------"
     done
 
