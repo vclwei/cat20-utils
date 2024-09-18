@@ -88,16 +88,10 @@ do
         
         # 获取并显示账户余额
         log "获取账户余额:"
-        # 获取并解析所有资产余额
         balance_output=$(yarn cli wallet balances)
-        # 使用awk提取所有资产及其余额
-        assets=$(echo "$balance_output" | awk -F'│' '/│/{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/^[ \t]+|[ \t]+$/, "", $3); if($2 != "" && $3 != "") print $2 ":" $3}')
-        # 打印当前钱包地址及所有资产余额
         log "$wallet_address 的资产余额:"
-        echo "$assets" | while IFS=: read -r asset balance; do
-            log "  $asset: $balance"
-        done
-
+        echo "$balance_output" | awk -F'│' 'NR>2 && NF>1 {gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $4); if($2 != "" && $3 != "" && $4 != "") print "  " $3 ": " $4}'
+        
         log "------------------------"
     done
 

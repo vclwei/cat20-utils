@@ -9,7 +9,7 @@ else
 fi
 
 # 检查必要的环境变量是否存在
-if [ -z "$WORK_PATH" ] || [ -z "$CONFIG_JSON_NETWORK" ] || [ -z "$CONFIG_JSON_TRACKER" ] || [ -z "$CONFIG_JSON_DATA_DIR" ] || [ -z "$CONFIG_JSON_RPC_URL" ] || [ -z "$CONFIG_JSON_RPC_USERNAME" ] || [ -z "$CONFIG_JSON_RPC_PASSWORD" ]; then
+if [ -z "$WORK_PATH" ] || [ -z "$CONFIG_JSON_NETWORK" ] || [ -z "$CONFIG_JSON_TRACKER" ] || [ -z "$CONFIG_JSON_DATA_DIR" ] || [ -z "$CONFIG_JSON_RPC_URL" ] || [ -z "$CONFIG_JSON_RPC_USERNAME" ] || [ -z "$CONFIG_JSON_RPC_PASSWORD" ] || [ -z "$GIT_REPO_URL" ]; then
     echo "错误：一个或多个必要的环境变量未在 .env 文件中定义"
     exit 1
 fi
@@ -49,7 +49,7 @@ next_num=$((max_num + 1))
 # 克隆仓库
 target_dir="$WORK_PATH/$next_num"
 log "克隆仓库到目录: $target_dir"
-git clone https://github.com/vclwei/cat-token-box.git "$target_dir"
+git clone "$GIT_REPO_URL" "$target_dir"
 
 # 切换到目标目录
 cd "$target_dir" || { log "无法切换到目标文件夹: $target_dir"; exit 1; }
@@ -65,7 +65,7 @@ yarn build
 cd packages/cli || { log "无法进入 packages/cli 目录"; exit 1; }
 
 # 修改 config.json 文件
-log "修改 config.json 文���..."
+log "修改 config.json 文..."
 echo "$CONFIG_JSON" > config.json
 
 log "config.json 文件已更新"

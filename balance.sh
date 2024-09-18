@@ -39,7 +39,7 @@ do
     target_dir="$WORK_PATH/$j/packages/cli"
     log "查询目录: $target_dir"
     if [ ! -d "$target_dir" ]; then
-        log "目录不存在: $target_dir"
+        log "目录不��在: $target_dir"
         continue
     fi
     cd "$target_dir" || { log "无法切换到目标文件夹: $target_dir"; continue; }
@@ -62,18 +62,26 @@ do
         log "BTC 余额: 无法获取"
     fi
     
-    # 获取并解析 CAT 余额
+    # 替换原有的获取并解析 CAT 余额的代码
     balance_output=$(yarn cli wallet balances)
-    cat_balance=$(echo "$balance_output" | grep -oP "(?<=│ 'CAT'  │ ')[0-9.]+" || echo "0.00")
-    
+    cat_balance=$(echo "$balance_output" | awk -F'│' '$3 ~ /'\''CAT'\''/ {gsub(/^[ \t]+|[ \t]+$/, "", $4); print $4}')
+    cat_balance=${cat_balance:-"0.00"}  # 如果没有找到 CAT 余额，默认为 0.00
+
     # 计算 CAT 张数
     cat_count=$(echo "$cat_balance" | awk '{print int($1)}')
     cat_sheets=$(echo "$cat_count / 5" | bc)
     cat_remainder=$(echo "$cat_count % 5" | bc)
-    
+
     log "CAT 余额: $cat_balance 个 ($cat_sheets 张完整, 余 $cat_remainder 个)"
-    
+
     total_cat=$(echo "$total_cat + $cat_balance" | bc)
+
+    # 获取其他代币余额
+    other_tokens=$(echo "$balance_output" | awk -F'│' 'NR>2 && $3 !~ /'\''CAT'\''/ {gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $4); if($3 != "" && $4 != "") print "  " $3 ": " $4}')
+    if [ ! -z "$other_tokens" ]; then
+        log "其他代币余额:"
+        echo "$other_tokens"
+    fi
     
     log "------------------------"
 done
