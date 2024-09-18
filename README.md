@@ -38,7 +38,7 @@
 
 ### mint.sh
 这个脚本用来批量执行 mint 操作，$HOME/cat/ 下有多少个目录，就会执行多少个钱包的 mint 操作。
-会自动获取当前的 fee，可以配置 max_fee 来限制最大可接受的 fee。
+会自动获取当前的 fee，可以配置 max_fee 来��制最大可接受的 fee。
 
 使用方法：
 1. 运行 ./mint.sh 不带参数，表示不限制 fee
@@ -51,3 +51,21 @@
 使用方法：
 1. 配置文件中中的 BITCOIN_CLI 和 BITCOIN_CONF 路径，BITCOIN_CLI 在 fractal 的 bin 目录下，BITCOIN_CONF 看自己放在那里。
 2. 运行 ./balance.sh，会输出 $HOME/cat/ 下所有数字目录程序包中钱包的 FB 和 CAT 余额。
+
+## 环境配置
+
+在运行脚本之前，请确保在当前目录中存在 .env 文件。.env 文件应包含以下变量：
+
+BITCOIN_CLI="/path/to/bitcoin-cli"
+BITCOIN_CONF="/path/to/bitcoin.conf"
+WORK_PATH="/path/to/work/directory"
+
+# CONFIG_JSON 配置
+CONFIG_JSON_NETWORK="fractal-mainnet"
+CONFIG_JSON_TRACKER="http://127.0.0.1:3000"
+CONFIG_JSON_DATA_DIR="."
+CONFIG_JSON_RPC_URL="http://127.0.0.1:8332"
+CONFIG_JSON_RPC_USERNAME="rpc_username"
+CONFIG_JSON_RPC_PASSWORD="rpc_password"
+
+请根据您的实际配置修改这些路径和值。

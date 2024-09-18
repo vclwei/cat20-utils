@@ -1,9 +1,18 @@
 #!/bin/bash
 
-# 定义 bitcoin-cli 的路径
-BITCOIN_CLI="/usr/local/bin/bitcoin-cli"
-# 定义 Bitcoin 配置文件的路径
-BITCOIN_CONF="/Users/xx/.bitcoin/bitcoin.conf"
+# 加载 .env 文件
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "错误：当前目录中不存在 .env 文件"
+    exit 1
+fi
+
+# 检查必要的环境变量是否存在
+if [ -z "$BITCOIN_CLI" ] || [ -z "$BITCOIN_CONF" ] || [ -z "$WORK_PATH" ]; then
+    echo "错误：BITCOIN_CLI、BITCOIN_CONF 或 WORK_PATH 未在 .env 文件中定义"
+    exit 1
+fi
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -11,8 +20,8 @@ log() {
 
 log "开始查询所有目标目录的 BTC 和 CAT 余额"
 
-# 获取 $HOME/cat/ 目录中的最大数字
-max_num=$(ls -d $HOME/cat/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
+# 获取 WORK_PATH 目录中的最大数字
+max_num=$(ls -d "$WORK_PATH"/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
 
 # 检查 max_num 是否为空或非数字
 if [[ -z "$max_num" ]] || ! [[ "$max_num" =~ ^[0-9]+$ ]]; then
@@ -27,7 +36,7 @@ total_cat=0
 # 遍历所有目标目录
 for ((j=1; j<=$max_num; j++))
 do
-    target_dir="$HOME/cat/$j/packages/cli"
+    target_dir="$WORK_PATH/$j/packages/cli"
     log "查询目录: $target_dir"
     if [ ! -d "$target_dir" ]; then
         log "目录不存在: $target_dir"

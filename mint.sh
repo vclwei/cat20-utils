@@ -1,25 +1,43 @@
 #!/bin/bash
 
+# 加载 .env 文件
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "错误：当前目录中不存在 .env 文件"
+    exit 1
+fi
+
+# 检查必要的环境变量是否存在
+if [ -z "$WORK_PATH" ]; then
+    echo "错误：WORK_PATH 未在 .env 文件中定义"
+    exit 1
+fi
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
 log "当前目录: $(pwd)"
-log "用户主目录: $HOME"
+log "工作目录: $WORK_PATH"
 
 # 检查参数数量
 if [ $# -eq 0 ]; then
-    log "未设置最大可接受fee，将不限制fee"
-    max_fee=-1  # 使用-1表示无限制
+    log "使用方法: $0 <交易ID> [最大可接受fee]"
+    exit 1
 elif [ $# -eq 1 ]; then
-    max_fee=$1
+    tid=$1
+    max_fee=-1  # 使用-1表示无限制
+elif [ $# -eq 2 ]; then
+    tid=$1
+    max_fee=$2
 else
-    log "使用方法: $0 [最大可接受fee]"
+    log "使用方法: $0 <交易ID> [最大可接受fee]"
     exit 1
 fi
 
-# 获取 $HOME/cat/ 目录中的最大数字
-max_num=$(ls -d $HOME/cat/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
+# 获取 WORK_PATH 目录中的最大数字
+max_num=$(ls -d "$WORK_PATH"/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
 
 # 初始化循环计数器
 loop_count=0
@@ -53,7 +71,7 @@ do
     # 内部循环,切换目标地址中的数字1到最大数字
     for ((j=1; j<=$max_num; j++))
     do
-        target_dir="$HOME/cat/$j/packages/cli"
+        target_dir="$WORK_PATH/$j/packages/cli"
         log "切换到目录: $target_dir"
         if [ ! -d "$target_dir" ]; then
             log "目录不存在: $target_dir"
@@ -66,15 +84,19 @@ do
         log " $wallet_address 进行 Mint"
         
         # 执行指定的命令
-        yarn cli mint -i 45ee725c2c5993b3e4d308842d87e973bf1951f5f7a804b21e4dd964ecd12d6b_0 --fee-rate $fee
+        yarn cli mint -i $tid --fee-rate $fee
         
         # 获取并显示账户余额
         log "获取账户余额:"
-            # 获取并解析 CAT 余额
+        # 获取并解析所有资产余额
         balance_output=$(yarn cli wallet balances)
-        cat_balance=$(echo "$balance_output" | grep -oP "(?<=│ 'CAT'  │ ')[0-9.]+" || echo "0.00")
-        # 打印当前钱包地址及CAT余额
-        log "$wallet_address 的 CAT 余额: $cat_balance"
+        # 使用awk提取所有资产及其余额
+        assets=$(echo "$balance_output" | awk -F'│' '/│/{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/^[ \t]+|[ \t]+$/, "", $3); if($2 != "" && $3 != "") print $2 ":" $3}')
+        # 打印当前钱包地址及所有资产余额
+        log "$wallet_address 的资产余额:"
+        echo "$assets" | while IFS=: read -r asset balance; do
+            log "  $asset: $balance"
+        done
 
         log "------------------------"
     done
