@@ -42,6 +42,9 @@ max_num=$(ls -d "$WORK_PATH"/* 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail
 # 初始化循环计数器
 loop_count=0
 
+# 初始化 total_btc 变量
+total_btc=0
+
 # 无限循环执行命令
 while true
 do
@@ -110,9 +113,12 @@ do
             # 检查 btc_balance 是否为有效数字
             if [[ $btc_balance =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
                 log "BTC 余额: $btc_balance"
-                total_btc=$(echo "$total_btc + $btc_balance" | bc -l)
+                # 使用 printf 确保输入是有效的数学表达式
+                total_btc=$(printf "%.8f" $(echo "$total_btc + $btc_balance" | bc -l))
+                log "累计 BTC 余额: $total_btc"
             else
                 log "警告: 获取到的 BTC 余额无效: $btc_balance"
+                log "Debug: BITCOIN_CLI 输出: $("$BITCOIN_CLI" -conf="$BITCOIN_CONF" -rpcwallet="$wallet_name" getbalance)"
             fi
         else
             log "钱包: $wallet_address" 
